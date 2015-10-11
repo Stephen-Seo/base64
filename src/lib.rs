@@ -15,13 +15,13 @@ fn it_works() {
 /// # Examples
 ///
 /// ```
-/// use base64::base64_map;
+/// use base64::data_to_base64_map;
 ///
-/// assert_eq!("N".to_string(), base64_map(13u8, false));
-/// assert_eq!("/".to_string(), base64_map(63u8, false));
-/// assert_eq!("_".to_string(), base64_map(63u8, true));
+/// assert_eq!("N".to_string(), data_to_base64_map(13u8, false));
+/// assert_eq!("/".to_string(), data_to_base64_map(63u8, false));
+/// assert_eq!("_".to_string(), data_to_base64_map(63u8, true));
 /// ```
-pub fn base64_map( value: u8, url_safe: bool ) -> String {
+pub fn data_to_base64_map( value: u8, url_safe: bool ) -> String {
     match value {
         0 => "A".to_string(),
         1 => "B".to_string(),
@@ -120,12 +120,12 @@ pub fn data_to_base64( data: &Vec<u8>, url_safe: bool ) -> String {
     let mut base64 = String::new();
     for (iter, current) in data.iter().enumerate() {
         if iter % 3 == 0 {
-            base64.push_str(&base64_map((current & 0xFCu8) >> 2, url_safe));
+            base64.push_str(&data_to_base64_map((current & 0xFCu8) >> 2, url_safe));
         } else if iter % 3 == 1 {
-            base64.push_str(&base64_map(((prev << 4) & 0x30u8) | (current >> 4), url_safe));
+            base64.push_str(&data_to_base64_map(((prev << 4) & 0x30u8) | (current >> 4), url_safe));
         } else if iter % 3 == 2 {
-            base64.push_str(&base64_map(((prev << 2) & 0x3Cu8) | ((current & 0xC0u8) >> 6), url_safe));
-            base64.push_str(&base64_map(current & 0x3Fu8, url_safe));
+            base64.push_str(&data_to_base64_map(((prev << 2) & 0x3Cu8) | ((current & 0xC0u8) >> 6), url_safe));
+            base64.push_str(&data_to_base64_map(current & 0x3Fu8, url_safe));
         }
 
         prev = *current;
@@ -133,10 +133,10 @@ pub fn data_to_base64( data: &Vec<u8>, url_safe: bool ) -> String {
     }
 
     if prev_iter % 3 == 0 {
-        base64.push_str(&base64_map((prev & 0x3u8) << 4, url_safe));
+        base64.push_str(&data_to_base64_map((prev & 0x3u8) << 4, url_safe));
         base64.push_str("==");
     } else if prev_iter % 3 == 1 {
-        base64.push_str(&base64_map((prev & 0xFu8) << 2, url_safe));
+        base64.push_str(&data_to_base64_map((prev & 0xFu8) << 2, url_safe));
         base64.push_str("=");
     }
 
