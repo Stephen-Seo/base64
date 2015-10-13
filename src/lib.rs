@@ -1,4 +1,5 @@
-
+use std::string::String;
+use std::char;
 
 #[test]
 fn it_works() {
@@ -8,6 +9,7 @@ fn it_works() {
     assert_eq!(byte & 0xFC, 0xFC);
 
     assert_eq!(121u8, 0x79u8);
+
 }
 
 /// Returns a base64 encoded character based on the value given
@@ -17,79 +19,18 @@ fn it_works() {
 /// ```
 /// use base64::data_to_base64_map;
 ///
-/// assert_eq!("N".to_string(), data_to_base64_map(13u8, false));
-/// assert_eq!("/".to_string(), data_to_base64_map(63u8, false));
-/// assert_eq!("_".to_string(), data_to_base64_map(63u8, true));
+/// assert_eq!(b"N"[0], data_to_base64_map(13u8, false));
+/// assert_eq!(b"/"[0], data_to_base64_map(63u8, false));
+/// assert_eq!(b"_"[0], data_to_base64_map(63u8, true));
 /// ```
-pub fn data_to_base64_map( value: u8, url_safe: bool ) -> String {
-    match value {
-        0 => "A".to_string(),
-        1 => "B".to_string(),
-        2 => "C".to_string(),
-        3 => "D".to_string(),
-        4 => "E".to_string(),
-        5 => "F".to_string(),
-        6 => "G".to_string(),
-        7 => "H".to_string(),
-        8 => "I".to_string(),
-        9 => "J".to_string(),
-        10 => "K".to_string(),
-        11 => "L".to_string(),
-        12 => "M".to_string(),
-        13 => "N".to_string(),
-        14 => "O".to_string(),
-        15 => "P".to_string(),
-        16 => "Q".to_string(),
-        17 => "R".to_string(),
-        18 => "S".to_string(),
-        19 => "T".to_string(),
-        20 => "U".to_string(),
-        21 => "V".to_string(),
-        22 => "W".to_string(),
-        23 => "X".to_string(),
-        24 => "Y".to_string(),
-        25 => "Z".to_string(),
-        26 => "a".to_string(),
-        27 => "b".to_string(),
-        28 => "c".to_string(),
-        29 => "d".to_string(),
-        30 => "e".to_string(),
-        31 => "f".to_string(),
-        32 => "g".to_string(),
-        33 => "h".to_string(),
-        34 => "i".to_string(),
-        35 => "j".to_string(),
-        36 => "k".to_string(),
-        37 => "l".to_string(),
-        38 => "m".to_string(),
-        39 => "n".to_string(),
-        40 => "o".to_string(),
-        41 => "p".to_string(),
-        42 => "q".to_string(),
-        43 => "r".to_string(),
-        44 => "s".to_string(),
-        45 => "t".to_string(),
-        46 => "u".to_string(),
-        47 => "v".to_string(),
-        48 => "w".to_string(),
-        49 => "x".to_string(),
-        50 => "y".to_string(),
-        51 => "z".to_string(),
-        52 => "0".to_string(),
-        53 => "1".to_string(),
-        54 => "2".to_string(),
-        55 => "3".to_string(),
-        56 => "4".to_string(),
-        57 => "5".to_string(),
-        58 => "6".to_string(),
-        59 => "7".to_string(),
-        60 => "8".to_string(),
-        61 => "9".to_string(),
-        62 if !url_safe => "+".to_string(),
-        62 if url_safe => "-".to_string(),
-        63 if !url_safe => "/".to_string(),
-        63 if url_safe => "_".to_string(),
-        _ => panic!("Error: value is out of range! (value is {})", value),
+pub fn data_to_base64_map( value: u8, url_safe: bool ) -> u8 {
+    static BASE64_ARRAY: &'static [u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    static BASE64_ARRAY_URLSAFE: &'static [u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+    if url_safe {
+        BASE64_ARRAY_URLSAFE[value as usize]
+    } else {
+        BASE64_ARRAY[value as usize]
     }
 }
 
@@ -102,44 +43,168 @@ pub fn data_to_base64_map( value: u8, url_safe: bool ) -> String {
 /// ```
 /// use base64::data_to_base64;
 ///
-/// let mut data = vec![121u8, 101u8, 112u8, 115u8];
+/// let data = [121u8, 101u8, 112u8, 115u8];
 /// let base64 = data_to_base64(&data, false);
 /// assert_eq!("eWVwcw==", base64);
 ///
-/// data.pop();
+/// let data = [121u8, 101u8, 112u8];
 /// let base64 = data_to_base64(&data, false);
 /// assert_eq!("eWVw", base64);
 ///
-/// data.pop();
+/// let data = [121u8, 101u8];
 /// let base64 = data_to_base64(&data, false);
 /// assert_eq!("eWU=", base64);
 /// ```
-pub fn data_to_base64( data: &Vec<u8>, url_safe: bool ) -> String {
-    let mut prev = 0u8;
-    let mut prev_iter: usize = 0;
-    let mut base64 = String::new();
-    for (iter, current) in data.iter().enumerate() {
-        if iter % 3 == 0 {
-            base64.push_str(&data_to_base64_map((current & 0xFCu8) >> 2, url_safe));
-        } else if iter % 3 == 1 {
-            base64.push_str(&data_to_base64_map(((prev << 4) & 0x30u8) | (current >> 4), url_safe));
-        } else if iter % 3 == 2 {
-            base64.push_str(&data_to_base64_map(((prev << 2) & 0x3Cu8) | ((current & 0xC0u8) >> 6), url_safe));
-            base64.push_str(&data_to_base64_map(current & 0x3Fu8, url_safe));
-        }
-
-        prev = *current;
-        prev_iter = iter;
+pub fn data_to_base64( data: &[u8], url_safe: bool ) -> String {
+    if data.len() == 0 {
+        return String::new();
     }
 
-    if prev_iter % 3 == 0 {
-        base64.push_str(&data_to_base64_map((prev & 0x3u8) << 4, url_safe));
-        base64.push_str("==");
-    } else if prev_iter % 3 == 1 {
-        base64.push_str(&data_to_base64_map((prev & 0xFu8) << 2, url_safe));
-        base64.push_str("=");
+    let mut prev = 0u8;
+    let mut prev_iter: usize = 0;
+    let mut base64: String = String::new();
+
+    for i in 0..data.len() {
+        match i % 3 {
+            0 => {
+                let character = char::from_u32(data_to_base64_map((data[i] & 0xFCu8) >> 2, url_safe) as u32);
+                match character {
+                    Some(a_character) => base64.push(a_character),
+                    _ => panic!("Failed to convert byte to character!"),
+                }
+            },
+            1 => {
+                let character = char::from_u32(data_to_base64_map(((prev << 4) & 0x30u8) | (data[i] >> 4), url_safe) as u32);
+                match character {
+                    Some(a_character) => base64.push(a_character),
+                    _ => panic!("Failed to convert byte to character!"),
+                }
+            },
+            2 => {
+                let character = char::from_u32(data_to_base64_map(((prev << 2) & 0x3Cu8) | ((data[i] & 0xC0u8) >> 6), url_safe) as u32);
+                match character {
+                    Some(a_character) => base64.push(a_character),
+                    _ => panic!("Failed to convert byte to character!"),
+                }
+
+                let character = char::from_u32(data_to_base64_map(data[i] & 0x3Fu8, url_safe) as u32);
+                match character {
+                    Some(a_character) => base64.push(a_character),
+                    _ => panic!("Failed to convert byte to character!"),
+                }
+            },
+            _ => unreachable!(),
+        }
+
+        prev = data[i];
+        prev_iter = i;
+    }
+
+    match prev_iter % 3 {
+        0 => {
+            let character = char::from_u32(data_to_base64_map((prev & 0x3u8) << 4, url_safe) as u32);
+            match character {
+                Some(a_character) => base64.push(a_character),
+                _ => panic!("Failed to convert byte to character!"),
+            }
+            base64.push_str("==");
+        },
+        1 => {
+            let character = char::from_u32(data_to_base64_map((prev & 0xFu8) << 2, url_safe) as u32);
+            match character {
+                Some(a_character) => base64.push(a_character),
+                _ => panic!("Failed to convert byte to character!"),
+            }
+            base64.push_str("=");
+        },
+        2 => (),
+        _ => unreachable!(),
     }
 
     base64
 }
+
+/// Returns data based on the base64 encoded character given
+/// Values must be within range A..Z, a..z, 0..9, +, -, /, _
+/// # Examples
+///
+/// ```
+/// use base64::base64_to_data_map;
+///
+/// assert_eq!(18u8, base64_to_data_map("S"));
+/// assert_eq!(63u8, base64_to_data_map("/"));
+/// assert_eq!(63u8, base64_to_data_map("_"));
+/// ```
+pub fn base64_to_data_map( base64: &str ) -> u8 {
+    match base64 {
+        "A" => 0u8,
+        "B" => 1u8,
+        "C" => 2u8,
+        "D" => 3u8,
+        "E" => 4u8,
+        "F" => 5u8,
+        "G" => 6u8,
+        "H" => 7u8,
+        "I" => 8u8,
+        "J" => 9u8,
+        "K" => 10u8,
+        "L" => 11u8,
+        "M" => 12u8,
+        "N" => 13u8,
+        "O" => 14u8,
+        "P" => 15u8,
+        "Q" => 16u8,
+        "R" => 17u8,
+        "S" => 18u8,
+        "T" => 19u8,
+        "U" => 20u8,
+        "V" => 21u8,
+        "W" => 22u8,
+        "X" => 23u8,
+        "Y" => 24u8,
+        "Z" => 25u8,
+        "a" => 26u8,
+        "b" => 27u8,
+        "c" => 28u8,
+        "d" => 29u8,
+        "e" => 30u8,
+        "f" => 31u8,
+        "g" => 32u8,
+        "h" => 33u8,
+        "i" => 34u8,
+        "j" => 35u8,
+        "k" => 36u8,
+        "l" => 37u8,
+        "m" => 38u8,
+        "n" => 39u8,
+        "o" => 40u8,
+        "p" => 41u8,
+        "q" => 42u8,
+        "r" => 43u8,
+        "s" => 44u8,
+        "t" => 45u8,
+        "u" => 46u8,
+        "v" => 47u8,
+        "w" => 48u8,
+        "x" => 49u8,
+        "y" => 50u8,
+        "z" => 51u8,
+        "0" => 52u8,
+        "1" => 53u8,
+        "2" => 54u8,
+        "3" => 55u8,
+        "4" => 56u8,
+        "5" => 57u8,
+        "6" => 58u8,
+        "7" => 59u8,
+        "8" => 60u8,
+        "9" => 61u8,
+        "+" => 62u8,
+        "-" => 62u8,
+        "/" => 63u8,
+        "_" => 63u8,
+        _ => panic!("Error: value is out of range! (value is {})", base64),
+    }
+}
+
 
