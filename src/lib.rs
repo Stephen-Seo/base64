@@ -1,5 +1,3 @@
-use std::string::String;
-use std::char;
 
 #[test]
 fn it_works() {
@@ -44,54 +42,68 @@ pub fn data_to_base64_map( value: u8, url_safe: bool ) -> u8 {
 /// use base64::data_to_base64;
 ///
 /// let data = [121u8, 101u8, 112u8, 115u8];
-/// let base64 = data_to_base64(&data, false);
-/// assert_eq!("eWVwcw==", base64);
+/// let mut base64_array = [0u8; 8];
+/// let mut base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
+/// assert_eq!(8, base64_size);
+/// assert_eq!(b"eWVwcw==", &base64_array);
 ///
 /// let data = [121u8, 101u8, 112u8];
-/// let base64 = data_to_base64(&data, false);
-/// assert_eq!("eWVw", base64);
+/// let mut base64_array = [0u8; 4];
+/// base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
+/// assert_eq!(4, base64_size);
+/// assert_eq!(b"eWVw", &base64_array);
 ///
 /// let data = [121u8, 101u8];
-/// let base64 = data_to_base64(&data, false);
-/// assert_eq!("eWU=", base64);
+/// base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
+/// assert_eq!(4, base64_size);
+/// assert_eq!(b"eWU=", &base64_array);
 /// ```
-pub fn data_to_base64( data: &[u8], url_safe: bool ) -> String {
-    if data.len() == 0 {
-        return String::new();
+pub fn data_to_base64( data: &[u8], data_size: usize, base64_result: &mut [u8], url_safe: bool ) -> usize {
+    if data_size == 0 {
+        return 0;
+    } else if data_size > data.len() {
+        panic!("ERROR: Given data size is greater than the data array!");
     }
 
+    let base64_size: usize = ((data.len() - 1) / 3 + 1) * 4;
+
+    if base64_size > base64_result.len() {
+        panic!("ERROR: calculated resulting size of base64 conversion is bigger than base64 array!");
+    }
+
+    let mut base64_iter: usize = 0;
     let mut prev = 0u8;
     let mut prev_iter: usize = 0;
-    let mut base64: String = String::new();
 
-    for i in 0..data.len() {
+
+    for i in 0..data_size {
         match i % 3 {
             0 => {
-                let character = char::from_u32(data_to_base64_map((data[i] & 0xFCu8) >> 2, url_safe) as u32);
-                match character {
-                    Some(a_character) => base64.push(a_character),
-                    _ => panic!("Failed to convert byte to character!"),
+                if base64_iter >= base64_size {
+                    panic!("base64_result index is greater than or equal to calculated size!");
                 }
+                base64_result[base64_iter] = data_to_base64_map((data[i] & 0xFCu8) >> 2, url_safe);
+                base64_iter += 1;
             },
             1 => {
-                let character = char::from_u32(data_to_base64_map(((prev << 4) & 0x30u8) | (data[i] >> 4), url_safe) as u32);
-                match character {
-                    Some(a_character) => base64.push(a_character),
-                    _ => panic!("Failed to convert byte to character!"),
+                if base64_iter >= base64_size {
+                    panic!("base64_result index is greater than or equal to calculated size!");
                 }
+                base64_result[base64_iter] = data_to_base64_map(((prev << 4) & 0x30u8) | (data[i] >> 4), url_safe);
+                base64_iter += 1;
             },
             2 => {
-                let character = char::from_u32(data_to_base64_map(((prev << 2) & 0x3Cu8) | ((data[i] & 0xC0u8) >> 6), url_safe) as u32);
-                match character {
-                    Some(a_character) => base64.push(a_character),
-                    _ => panic!("Failed to convert byte to character!"),
+                if base64_iter >= base64_size {
+                    panic!("base64_result index is greater than or equal to calculated size!");
                 }
+                base64_result[base64_iter] = data_to_base64_map(((prev << 2) & 0x3Cu8) | ((data[i] & 0xC0u8) >> 6), url_safe);
+                base64_iter += 1;
 
-                let character = char::from_u32(data_to_base64_map(data[i] & 0x3Fu8, url_safe) as u32);
-                match character {
-                    Some(a_character) => base64.push(a_character),
-                    _ => panic!("Failed to convert byte to character!"),
+                if base64_iter >= base64_size {
+                    panic!("base64_result index is greater than or equal to calculated size!");
                 }
+                base64_result[base64_iter] = data_to_base64_map(data[i] & 0x3Fu8, url_safe);
+                base64_iter += 1;
             },
             _ => unreachable!(),
         }
@@ -102,26 +114,46 @@ pub fn data_to_base64( data: &[u8], url_safe: bool ) -> String {
 
     match prev_iter % 3 {
         0 => {
-            let character = char::from_u32(data_to_base64_map((prev & 0x3u8) << 4, url_safe) as u32);
-            match character {
-                Some(a_character) => base64.push(a_character),
-                _ => panic!("Failed to convert byte to character!"),
+            if base64_iter >= base64_size {
+                panic!("base64_result index is greater than or equal to calculated size!");
             }
-            base64.push_str("==");
+            base64_result[base64_iter] = data_to_base64_map((prev & 0x3u8) << 4, url_safe);
+            base64_iter += 1;
+
+            if base64_iter >= base64_size {
+                panic!("base64_result index is greater than or equal to calculated size!");
+            }
+            base64_result[base64_iter] = 61u8;
+            base64_iter += 1;
+
+            if base64_iter >= base64_size {
+                panic!("base64_result index is greater than or equal to calculated size!");
+            }
+            base64_result[base64_iter] = 61u8;
+            base64_iter += 1;
         },
         1 => {
-            let character = char::from_u32(data_to_base64_map((prev & 0xFu8) << 2, url_safe) as u32);
-            match character {
-                Some(a_character) => base64.push(a_character),
-                _ => panic!("Failed to convert byte to character!"),
+            if base64_iter >= base64_size {
+                panic!("base64_result index is greater than or equal to calculated size!");
             }
-            base64.push_str("=");
+            base64_result[base64_iter] = data_to_base64_map((prev & 0xFu8) << 2, url_safe);
+            base64_iter += 1;
+
+            if base64_iter >= base64_size {
+                panic!("base64_result index is greater than or equal to calculated size!");
+            }
+            base64_result[base64_iter] = 61u8;
+            base64_iter += 1;
         },
         2 => (),
         _ => unreachable!(),
     }
 
-    base64
+    if base64_iter != base64_size {
+        panic!("ERROR: Function ended with incorrect final base64_iter value of {}; base64_size is {}", base64_iter, base64_size);
+    }
+
+    base64_size
 }
 
 /// Returns data based on the base64 encoded character given
