@@ -32,7 +32,7 @@ pub fn data_to_base64_map( value: u8, url_safe: bool ) -> u8 {
     }
 }
 
-/// Encodes data into a base64 encoded string.
+/// Encodes data from a byte array into a base64 encoded byte array.
 ///
 /// note that in the following example 121, 101, 112, and 115 are decimal
 /// values for the string "yeps" in utf-8.
@@ -60,7 +60,7 @@ pub fn data_to_base64_map( value: u8, url_safe: bool ) -> u8 {
 /// ```
 pub fn data_to_base64( data: &[u8], data_size: usize, base64_result: &mut [u8], url_safe: bool ) -> usize {
     if data_size == 0 {
-        return 0;
+        panic!("ERROR: Given data size is zero!");
     } else if data_size > data.len() {
         panic!("ERROR: Given data size is greater than the data array!");
     }
@@ -68,7 +68,7 @@ pub fn data_to_base64( data: &[u8], data_size: usize, base64_result: &mut [u8], 
     let base64_size: usize = ((data.len() - 1) / 3 + 1) * 4;
 
     if base64_size > base64_result.len() {
-        panic!("ERROR: calculated resulting size of base64 conversion is bigger than base64 array!");
+        panic!("ERROR: calculated resulting size of data to base64 conversion is bigger than base64_result array!");
     }
 
     let mut base64_iter: usize = 0;
@@ -179,5 +179,126 @@ pub fn base64_to_data_map( base64: u8 ) -> u8 {
           41,  42,  43,  44,  45,  46,  47,  48,  49,  50,  51, 255, 255, 255, 255, 255];
 
     DATA_ARRAY[base64 as usize]
+}
+
+/// Decodes data from base64 encoded array of bytes.
+///
+/// # Examples
+///
+/// ```
+/// use base64::base64_to_data;
+///
+/// let base64: &[u8; 8] = b"////////";
+/// let mut data: [u8; 6] = [0u8; 6];
+/// let mut data_size: usize = base64_to_data( base64, base64.len(), &mut data );
+/// assert_eq!(data_size, 6);
+/// let result: [u8; 6] = [255, 255, 255, 255, 255, 255];
+/// assert_eq!(&result, &data);
+///
+/// let base64: &[u8; 4] = b"//==";
+/// data[2] = 0;
+/// data[3] = 0;
+/// data[4] = 0;
+/// data[5] = 0;
+/// data_size = base64_to_data(base64, base64.len(), &mut data);
+/// assert_eq!(data_size, 2);
+/// let result: [u8; 6] = [255, 0xF0, 0, 0, 0, 0];
+/// assert_eq!(&result, &data);
+///
+/// let base64: &[u8; 4] = b"///=";
+/// data[3] = 0;
+/// data[4] = 0;
+/// data[5] = 0;
+/// data_size = base64_to_data(base64, base64.len(), &mut data);
+/// assert_eq!(data_size, 3);
+/// let result: [u8; 6] = [255, 255, 0xC0, 0, 0, 0];
+/// assert_eq!(&result, &data);
+///
+/// let base64: &[u8; 8] = b"Q2hhcHM=";
+/// data_size = base64_to_data(base64, base64.len(), &mut data);
+/// assert_eq!(data_size, 6);
+/// let result: [u8; 6] = [67, 104, 97, 112, 115, 0];
+/// assert_eq!(&result, &data);
+/// ```
+pub fn base64_to_data( base64: &[u8], base64_size: usize, data_result: &mut [u8]) -> usize {
+    if base64_size == 0 {
+        panic!("ERROR: Given base64_size is zero!");
+    } else if base64_size > base64.len() {
+        panic!("ERROR: Given base64 size is greater than the base64 array!");
+    } else if base64_size % 4 != 0 {
+        panic!("ERROR: base64 array is of irregular length not divisible by 4!");
+    }
+
+    let mut amount_of_padding: u8 = 0;
+    {
+        let mut base64_iter: usize = base64_size;
+        while base64[base64_iter - 1] == 61u8 {
+            amount_of_padding += 1;
+            base64_iter -= 1;
+        }
+        if amount_of_padding > 2 { panic!("ERROR: Invalid amount of padding!"); }
+    }
+
+    let data_size: usize = (base64_size / 4 - if amount_of_padding > 0 { 1 } else { 0 }) * 3 +
+        match amount_of_padding {
+            0 => 0,
+            1 => 3,
+            2 => 2,
+            _ => unreachable!(),
+        };
+
+    if data_size > data_result.len() {
+        panic!("ERROR: calculated resulting size of base64 to data conversion is bigger than data_result array!");
+    }
+
+    let mut prev: u8 = 255u8;
+    let mut data_iter: usize = 0;
+
+    for i in 0..base64_size {
+        if base64[i] == 61u8 { break; }
+
+        let temp_data = base64_to_data_map(base64[i]);
+        if temp_data >= 64u8 { panic!("ERROR: Invalid byte in base64 array!") }
+        match i % 4 {
+            0 => (),
+            1 => {
+                if data_iter >= data_size { panic!("ERROR: data_iter is greater than or equal to data_size!"); }
+                data_result[data_iter] = (prev << 2) | (temp_data >> 4);
+                data_iter += 1;
+            },
+            2 => {
+                if data_iter >= data_size { panic!("ERROR: data_iter is greater than or equal to data_size!"); }
+                data_result[data_iter] = (prev << 4) | (temp_data >> 2);
+                data_iter += 1;
+            },
+            3 => {
+                if data_iter >= data_size { panic!("ERROR: data_iter is greater than or equal to data_size!"); }
+                data_result[data_iter] = (prev << 6) | temp_data;
+                data_iter += 1;
+            },
+            _ => unreachable!(),
+        }
+
+        prev = temp_data;
+    }
+
+    match amount_of_padding {
+        0 => (),
+        1 => {
+            if data_iter >= data_size { panic!("ERROR: data_iter is greater than or equal to data_size!"); }
+            data_result[data_iter] = prev << 6;
+            data_iter += 1;
+        },
+        2 => {
+            if data_iter >= data_size { panic!("ERROR: data_iter is greater than or equal to data_size!"); }
+            data_result[data_iter] = prev << 4;
+            data_iter += 1;
+        },
+        _ => unreachable!(),
+    }
+
+    if data_iter != data_size { panic!("ERROR: Function ended with incorrect final data_iter value of {}; data_size is {}", data_iter, data_size); }
+
+    data_size
 }
 
