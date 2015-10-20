@@ -1,13 +1,28 @@
 
 #[test]
 fn it_works() {
-//    let s = "The test string".to_string();
+    let s = "The test string".to_string();
+    let sbytes = s.into_bytes();
+    let mut data: [u8; 15] = [0u8; 15];
+    let mut base64: [u8; 20] = [0u8; 20];
 
-    let byte: u8 = 0xFF;
-    assert_eq!(byte & 0xFC, 0xFC);
+    let result_size = data_to_base64(&sbytes, sbytes.len(), &mut base64, false);
+    assert_eq!(result_size, base64.len());
+    let result_size = base64_to_data(&base64, base64.len(), &mut data);
+    assert_eq!(result_size, data.len());
 
-    assert_eq!(121u8, 0x79u8);
+    assert_eq!(sbytes, data);
 
+    let s = "DapperBase64/+Hi".to_string();
+    let sbytes = s.into_bytes();
+    let mut data: [u8; 12] = [0u8; 12];
+    let mut base64: [u8; 16] = [0u8; 16];
+    let result_size = base64_to_data(&sbytes, sbytes.len(), &mut data);
+    assert_eq!(result_size, data.len());
+    let result_size = data_to_base64(&data, data.len(), &mut base64, false);
+    assert_eq!(result_size, base64.len());
+
+    assert_eq!(sbytes, base64);
 }
 
 /// Returns a base64 encoded character based on the value given
