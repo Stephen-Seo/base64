@@ -41,6 +41,7 @@ use libc::{free, malloc};
 ///   assert_eq!(8, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 8);
 ///   assert_eq!(b"eWVwcw==", b64_slice);
+///   assert_eq!(*encoded.byte_offset(8), 0);
 ///   free(encoded as *mut c_ffi::c_void);
 /// }
 ///
@@ -50,6 +51,7 @@ use libc::{free, malloc};
 ///   assert_eq!(4, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 4);
 ///   assert_eq!(b"eWVw", b64_slice);
+///   assert_eq!(*encoded.byte_offset(4), 0);
 ///   free(encoded as *mut c_ffi::c_void);
 /// }
 ///
@@ -59,6 +61,7 @@ use libc::{free, malloc};
 ///   assert_eq!(4, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 4);
 ///   assert_eq!(b"eWU=", b64_slice);
+///   assert_eq!(*encoded.byte_offset(4), 0);
 ///   free(encoded as *mut c_ffi::c_void);
 /// }
 /// ```
@@ -79,7 +82,8 @@ pub extern "C" fn data_to_base64_c_interface(
     unsafe {
         (*b64_size_out) = b64_len;
         let data_slice: &[u8] = slice::from_raw_parts(data as *const u8, data_size as usize);
-        let malloced_data: *mut c_ffi::c_void = malloc(b64_len as libc::size_t);
+        // +1 for the NULL terminator.
+        let malloced_data: *mut c_ffi::c_void = malloc(b64_len as libc::size_t + 1);
         let output_slice: &mut [u8] =
             slice::from_raw_parts_mut(malloced_data as *mut u8, b64_len as usize);
 
@@ -94,6 +98,9 @@ pub extern "C" fn data_to_base64_c_interface(
             free(malloced_data);
             return c_ptr::null_mut();
         }
+
+        // Apply the NULL terminator.
+        *(malloced_data.byte_offset(b64_len as isize) as *mut c_ffi::c_char) = 0;
 
         return malloced_data as *mut c_ffi::c_char;
     }
@@ -117,6 +124,7 @@ pub extern "C" fn data_to_base64_c_interface(
 ///   let result: [u8; 6] = [255, 255, 255, 255, 255, 255];
 ///   let data: &[u8] = slice::from_raw_parts(decoded as *const u8, 6);
 ///   assert_eq!(&result, data);
+///   assert_eq!(*(decoded.byte_offset(6) as *const u8), 0);
 ///   free(decoded);
 /// }
 ///
@@ -129,6 +137,7 @@ pub extern "C" fn data_to_base64_c_interface(
 ///   let result: [u8; 2] = [255, 0xF0];
 ///   let data: &[u8] = slice::from_raw_parts(decoded as *const u8, 2);
 ///   assert_eq!(&result, data);
+///   assert_eq!(*(decoded.byte_offset(2) as *const u8), 0);
 ///   free(decoded);
 /// }
 ///
@@ -141,6 +150,7 @@ pub extern "C" fn data_to_base64_c_interface(
 ///   let result: [u8; 3] = [255, 255, 0xC0];
 ///   let data: &[u8] = slice::from_raw_parts(decoded as *const u8, 3);
 ///   assert_eq!(&result, data);
+///   assert_eq!(*(decoded.byte_offset(3) as *const u8), 0);
 ///   free(decoded);
 /// }
 ///
@@ -153,6 +163,7 @@ pub extern "C" fn data_to_base64_c_interface(
 ///   let result: [u8; 6] = [67, 104, 97, 112, 115, 0];
 ///   let data: &[u8] = slice::from_raw_parts(decoded as *const u8, 6);
 ///   assert_eq!(&result, data);
+///   assert_eq!(*(decoded.byte_offset(6) as *const u8), 0);
 ///   free(decoded);
 /// }
 /// ```
@@ -191,7 +202,8 @@ pub extern "C" fn base64_to_data_c_interface(
     unsafe {
         (*data_size_out) = data_len;
         let b64_slice: &[u8] = slice::from_raw_parts(b64 as *const u8, b64_size as usize);
-        let malloced_data: *mut c_ffi::c_void = malloc(data_len as libc::size_t);
+        // +1 for the NULL terminator.
+        let malloced_data: *mut c_ffi::c_void = malloc(data_len as libc::size_t + 1);
         let output_slice: &mut [u8] =
             slice::from_raw_parts_mut(malloced_data as *mut u8, data_len as usize);
 
@@ -201,6 +213,9 @@ pub extern "C" fn base64_to_data_c_interface(
             free(malloced_data);
             return c_ptr::null_mut();
         }
+
+        // Apply the NULL terminator.
+        *(malloced_data.byte_offset(data_len as isize) as *mut c_ffi::c_char) = 0;
 
         return malloced_data;
     }
