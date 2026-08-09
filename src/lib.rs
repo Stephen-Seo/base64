@@ -83,9 +83,9 @@ fn it_works() {
 /// assert_eq!(b"_"[0], data_to_base64_map(63u8, true));
 /// ```
 pub fn data_to_base64_map(value: u8, url_safe: bool) -> u8 {
-    static BASE64_ARRAY: &'static [u8; 64] =
+    static BASE64_ARRAY: &[u8; 64] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    static BASE64_ARRAY_URLSAFE: &'static [u8; 64] =
+    static BASE64_ARRAY_URLSAFE: &[u8; 64] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
     if url_safe {
@@ -130,16 +130,15 @@ pub fn data_to_base64(data: &[u8], url_safe: bool) -> Result<Vec<u8>, B64Error> 
     let mut prev = 0u8;
     let mut prev_iter: usize = 0;
 
-    let mut base64_result: Vec<u8> = Vec::new();
-    base64_result.resize(base64_size, 0);
+    let mut base64_result: Vec<u8> = vec![0; base64_size];
 
-    for i in 0..data.len() {
-        match i % 3 {
+    for (idx, byte) in data.iter().enumerate() {
+        match idx % 3 {
             0 => {
                 if base64_iter >= base64_size {
                     return Err(B64Error::DataSizeMismatch);
                 }
-                base64_result[base64_iter] = data_to_base64_map((data[i] & 0xFCu8) >> 2, url_safe);
+                base64_result[base64_iter] = data_to_base64_map((byte & 0xFCu8) >> 2, url_safe);
                 base64_iter += 1;
             }
             1 => {
@@ -147,30 +146,28 @@ pub fn data_to_base64(data: &[u8], url_safe: bool) -> Result<Vec<u8>, B64Error> 
                     return Err(B64Error::DataSizeMismatch);
                 }
                 base64_result[base64_iter] =
-                    data_to_base64_map(((prev << 4) & 0x30u8) | (data[i] >> 4), url_safe);
+                    data_to_base64_map(((prev << 4) & 0x30u8) | (byte >> 4), url_safe);
                 base64_iter += 1;
             }
             2 => {
                 if base64_iter >= base64_size {
                     return Err(B64Error::DataSizeMismatch);
                 }
-                base64_result[base64_iter] = data_to_base64_map(
-                    ((prev << 2) & 0x3Cu8) | ((data[i] & 0xC0u8) >> 6),
-                    url_safe,
-                );
+                base64_result[base64_iter] =
+                    data_to_base64_map(((prev << 2) & 0x3Cu8) | ((byte & 0xC0u8) >> 6), url_safe);
                 base64_iter += 1;
 
                 if base64_iter >= base64_size {
                     return Err(B64Error::DataSizeMismatch);
                 }
-                base64_result[base64_iter] = data_to_base64_map(data[i] & 0x3Fu8, url_safe);
+                base64_result[base64_iter] = data_to_base64_map(byte & 0x3Fu8, url_safe);
                 base64_iter += 1;
             }
             _ => unreachable!(),
         }
 
-        prev = data[i];
-        prev_iter = i;
+        prev = *byte;
+        prev_iter = idx;
     }
 
     match prev_iter % 3 {
@@ -274,7 +271,7 @@ pub fn base64_to_data_map(base64: u8) -> u8 {
 /// assert_eq!(&result, data_result.as_slice());
 /// ```
 pub fn base64_to_data(base64: &[u8]) -> Result<Vec<u8>, B64Error> {
-    if base64.is_empty() || base64.len() % 4 != 0 {
+    if base64.is_empty() || !base64.len().is_multiple_of(4) {
         return Err(B64Error::InvalidDataSize);
     }
 
@@ -298,22 +295,21 @@ pub fn base64_to_data(base64: &[u8]) -> Result<Vec<u8>, B64Error> {
             _ => unreachable!(),
         };
 
-    let mut data_result: Vec<u8> = Vec::new();
-    data_result.resize(data_size, 0);
+    let mut data_result: Vec<u8> = vec![0; data_size];
 
     let mut prev: u8 = 255u8;
     let mut data_iter: usize = 0;
 
-    for i in 0..base64.len() {
-        if base64[i] == 61u8 {
+    for (idx, byte) in base64.iter().enumerate() {
+        if *byte == 61u8 {
             break;
         }
 
-        let temp_data = base64_to_data_map(base64[i]);
+        let temp_data = base64_to_data_map(*byte);
         if temp_data >= 64u8 {
             return Err(B64Error::InvalidData);
         }
-        match i % 4 {
+        match idx % 4 {
             0 => (),
             1 => {
                 if data_iter >= data_size {

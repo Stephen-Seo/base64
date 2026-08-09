@@ -65,8 +65,13 @@ use libc::{free, malloc};
 ///   free(encoded as *mut c_ffi::c_void);
 /// }
 /// ```
+///
+/// # Safety
+/// It is expected for this function to not have issues with integrity (like
+/// memory leaks). Though it is marked unsafe, any such integrity errors are
+/// implementation errors and this function should be safe to call.
 #[unsafe(no_mangle)]
-pub extern "C" fn data_to_base64_c_interface(
+pub unsafe extern "C" fn data_to_base64_c_interface(
     data: *const c_ffi::c_void,
     data_size: c_ffi::c_ulonglong,
     url_safe: c_ffi::c_int,
@@ -89,7 +94,7 @@ pub extern "C" fn data_to_base64_c_interface(
         // +1 for the NULL terminator.
         let malloced_data: *mut c_ffi::c_void = malloc(b64_len as libc::size_t + 1);
 
-        let b64_result = data_to_base64(data_slice, if url_safe == 0 { false } else { true });
+        let b64_result = data_to_base64(data_slice, url_safe != 0);
 
         if let Err(e) = b64_result {
             if stderr_on_error != 0 {
@@ -121,7 +126,7 @@ pub extern "C" fn data_to_base64_c_interface(
         // Apply the NULL terminator.
         *(malloced_data.byte_offset(b64_len as isize) as *mut c_ffi::c_char) = 0;
 
-        return malloced_data as *mut c_ffi::c_char;
+        malloced_data as *mut c_ffi::c_char
     }
 }
 
@@ -186,8 +191,13 @@ pub extern "C" fn data_to_base64_c_interface(
 ///   free(decoded);
 /// }
 /// ```
+///
+/// # Safety
+/// It is expected for this function to not have issues with integrity (like
+/// memory leaks). Though it is marked unsafe, any such integrity errors are
+/// implementation errors and this function should be safe to call.
 #[unsafe(no_mangle)]
-pub extern "C" fn base64_to_data_c_interface(
+pub unsafe extern "C" fn base64_to_data_c_interface(
     b64: *const c_ffi::c_char,
     b64_size: c_ffi::c_ulonglong,
     data_size_out: *mut c_ffi::c_ulonglong,
@@ -263,6 +273,6 @@ pub extern "C" fn base64_to_data_c_interface(
         // Apply the NULL terminator.
         *(malloced_data.byte_offset(data_len as isize) as *mut c_ffi::c_char) = 0;
 
-        return malloced_data;
+        malloced_data
     }
 }
