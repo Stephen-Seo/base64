@@ -283,7 +283,7 @@ pub fn base64_to_data(base64: &[u8]) -> Result<Vec<u8>, B64Error> {
             base64_iter -= 1;
         }
         if amount_of_padding > 2 {
-            panic!("ERROR: Invalid amount of padding!");
+            return Err(B64Error::InvalidData);
         }
     }
 
