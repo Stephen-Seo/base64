@@ -1,11 +1,11 @@
 // ISC License
-// 
+//
 // Copyright (c) 2015,2026 Stephen Seo
-// 
+//
 // Permission to use, copy, modify, and/or distribute this software for any
 // purpose with or without fee is hereby granted, provided that the above
 // copyright notice and this permission notice appear in all copies.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
 // REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 // AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -37,7 +37,7 @@ use libc::{free, malloc};
 /// let data = [121u8, 101u8, 112u8, 115u8];
 /// let mut b64_size_out: c_ffi::c_ulonglong = 0;
 /// unsafe {
-///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert_eq!(8, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 8);
 ///   assert_eq!(b"eWVwcw==", b64_slice);
@@ -47,7 +47,7 @@ use libc::{free, malloc};
 ///
 /// let data = [121u8, 101u8, 112u8];
 /// unsafe {
-///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert_eq!(4, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 4);
 ///   assert_eq!(b"eWVw", b64_slice);
@@ -57,7 +57,7 @@ use libc::{free, malloc};
 ///
 /// let data = [121u8, 101u8];
 /// unsafe {
-///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut encoded: *mut c_ffi::c_char = data_to_base64_c_interface(&data as *const u8 as *const c_ffi::c_void, data.len() as c_ffi::c_ulonglong, 0, (&mut b64_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert_eq!(4, b64_size_out);
 ///   let b64_slice: &[u8] = slice::from_raw_parts(encoded as *const u8, 4);
 ///   assert_eq!(b"eWU=", b64_slice);
@@ -71,8 +71,12 @@ pub extern "C" fn data_to_base64_c_interface(
     data_size: c_ffi::c_ulonglong,
     url_safe: c_ffi::c_int,
     b64_size_out: *mut c_ffi::c_ulonglong,
+    stderr_on_error: c_ffi::c_int,
 ) -> *mut c_ffi::c_char {
     if data.is_null() || b64_size_out.is_null() {
+        if stderr_on_error != 0 {
+            eprintln!("NULL passed to data_to_base64_c_interface!");
+        }
         return c_ptr::null_mut();
     }
 
@@ -84,19 +88,34 @@ pub extern "C" fn data_to_base64_c_interface(
         let data_slice: &[u8] = slice::from_raw_parts(data as *const u8, data_size as usize);
         // +1 for the NULL terminator.
         let malloced_data: *mut c_ffi::c_void = malloc(b64_len as libc::size_t + 1);
-        let output_slice: &mut [u8] =
-            slice::from_raw_parts_mut(malloced_data as *mut u8, b64_len as usize);
 
-        let output_b64_size: usize = data_to_base64(
-            data_slice,
-            data_slice.len(),
-            output_slice,
-            if url_safe == 0 { false } else { true },
-        );
+        let b64_result = data_to_base64(data_slice, if url_safe == 0 { false } else { true });
 
-        if output_b64_size != b64_len as usize {
+        if let Err(e) = b64_result {
+            if stderr_on_error != 0 {
+                eprintln!("Failed to encode to base64: {}!", e);
+            }
+
             free(malloced_data);
             return c_ptr::null_mut();
+        }
+
+        let b64 = b64_result.unwrap();
+
+        if b64.len() != b64_len as usize {
+            if stderr_on_error != 0 {
+                eprintln!("Failed to encode to base64: encoded size mismatch!");
+            }
+            free(malloced_data);
+            return c_ptr::null_mut();
+        }
+
+        let malloced_slice: &mut [u8] =
+            slice::from_raw_parts_mut(malloced_data as *mut u8, b64_len as usize);
+
+        // Shouldn't panic due to previous check on sizes.
+        for (idx, byte) in b64.into_iter().enumerate() {
+            malloced_slice[idx] = byte;
         }
 
         // Apply the NULL terminator.
@@ -118,7 +137,7 @@ pub extern "C" fn data_to_base64_c_interface(
 /// let base64: &[u8; 8] = b"////////";
 /// let mut data_size_out: c_ffi::c_ulonglong = 0;
 /// unsafe {
-///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert!(!decoded.is_null());
 ///   assert_eq!(data_size_out, 6);
 ///   let result: [u8; 6] = [255, 255, 255, 255, 255, 255];
@@ -131,7 +150,7 @@ pub extern "C" fn data_to_base64_c_interface(
 /// let base64: &[u8; 4] = b"//==";
 /// data_size_out = 0;
 /// unsafe {
-///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert!(!decoded.is_null());
 ///   assert_eq!(data_size_out, 2);
 ///   let result: [u8; 2] = [255, 0xF0];
@@ -144,7 +163,7 @@ pub extern "C" fn data_to_base64_c_interface(
 /// let base64: &[u8; 4] = b"///=";
 /// data_size_out = 0;
 /// unsafe {
-///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert!(!decoded.is_null());
 ///   assert_eq!(data_size_out, 3);
 ///   let result: [u8; 3] = [255, 255, 0xC0];
@@ -157,7 +176,7 @@ pub extern "C" fn data_to_base64_c_interface(
 /// let base64: &[u8; 8] = b"Q2hhcHM=";
 /// data_size_out = 0;
 /// unsafe {
-///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong);
+///   let mut decoded: *mut c_ffi::c_void = base64_to_data_c_interface(base64 as *const u8 as *const c_ffi::c_char, base64.len() as c_ffi::c_ulonglong, (&mut data_size_out) as *mut c_ffi::c_ulonglong, 1);
 ///   assert!(!decoded.is_null());
 ///   assert_eq!(data_size_out, 6);
 ///   let result: [u8; 6] = [67, 104, 97, 112, 115, 0];
@@ -172,8 +191,12 @@ pub extern "C" fn base64_to_data_c_interface(
     b64: *const c_ffi::c_char,
     b64_size: c_ffi::c_ulonglong,
     data_size_out: *mut c_ffi::c_ulonglong,
+    stderr_on_error: c_ffi::c_int,
 ) -> *mut c_ffi::c_void {
     if b64.is_null() || data_size_out.is_null() {
+        if stderr_on_error != 0 {
+            eprintln!("NULL passed to base64_to_data_c_interface!");
+        }
         return c_ptr::null_mut();
     }
 
@@ -185,6 +208,9 @@ pub extern "C" fn base64_to_data_c_interface(
             padding_count += 1;
             idx -= 1;
             if padding_count > 2 || idx == 0 {
+                if stderr_on_error != 0 {
+                    eprintln!("Internal error in base64_to_data_c_interface!");
+                }
                 return c_ptr::null_mut();
             }
             b64_ptr = b64_ptr.wrapping_byte_sub(1);
@@ -204,14 +230,34 @@ pub extern "C" fn base64_to_data_c_interface(
         let b64_slice: &[u8] = slice::from_raw_parts(b64 as *const u8, b64_size as usize);
         // +1 for the NULL terminator.
         let malloced_data: *mut c_ffi::c_void = malloc(data_len as libc::size_t + 1);
-        let output_slice: &mut [u8] =
-            slice::from_raw_parts_mut(malloced_data as *mut u8, data_len as usize);
 
-        let output_data_size: usize = base64_to_data(b64_slice, b64_slice.len(), output_slice);
+        let data_result = base64_to_data(b64_slice);
 
-        if output_data_size != data_len as usize {
+        if let Err(e) = data_result {
+            if stderr_on_error != 0 {
+                eprintln!("Failed to decode from base64: {}!", e);
+            }
+
             free(malloced_data);
             return c_ptr::null_mut();
+        }
+
+        let data = data_result.unwrap();
+
+        if data.len() != data_len as usize {
+            if stderr_on_error != 0 {
+                eprintln!("Failed to decode from base64: decoded size mismatch!");
+            }
+            free(malloced_data);
+            return c_ptr::null_mut();
+        }
+
+        let malloced_slice: &mut [u8] =
+            slice::from_raw_parts_mut(malloced_data as *mut u8, data_len as usize);
+
+        // Shouldn't panic due to previous check on sizes.
+        for (idx, byte) in data.into_iter().enumerate() {
+            malloced_slice[idx] = byte;
         }
 
         // Apply the NULL terminator.

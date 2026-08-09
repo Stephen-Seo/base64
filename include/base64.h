@@ -21,11 +21,14 @@
 extern "C" {
 #endif
 
-// NULL on error, must be FREE'd after use.
-char *data_to_base64_c_interface(const void *data, unsigned long long data_size, int url_safe, unsigned long long *b64_size_out);
+/// NULL on error, must be FREE'd after use.
+/// Set url_safe to non-zero to generate a "url-safe" base64 encoding.
+/// Set stderr_on_error to non-zero to emit errors to stderr should they occur.
+char *data_to_base64_c_interface(const void *data, unsigned long long data_size, int url_safe, unsigned long long *b64_size_out, int stderr_on_error);
 
-// NULL on error, must be FREE'd after use.
-void *base64_to_data_c_interface(const char *base64, unsigned long long base64_size, unsigned long long *data_size_out);
+/// NULL on error, must be FREE'd after use.
+/// Set stderr_on_error to non-zero to emit errors to stderr should they occur.
+void *base64_to_data_c_interface(const char *base64, unsigned long long base64_size, unsigned long long *data_size_out, int stderr_on_error);
 
 #ifdef __cplusplus
 }

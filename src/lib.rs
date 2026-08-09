@@ -1,11 +1,11 @@
 // ISC License
-// 
+//
 // Copyright (c) 2015,2026 Stephen Seo
-// 
+//
 // Permission to use, copy, modify, and/or distribute this software for any
 // purpose with or without fee is hereby granted, provided that the above
 // copyright notice and this permission notice appear in all copies.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
 // REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
 // AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
@@ -14,32 +14,61 @@
 // OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 // PERFORMANCE OF THIS SOFTWARE.
 
+use std::{error::Error, fmt::Display};
+
 pub mod c_ffi;
+
+#[derive(Debug, Copy, Clone)]
+pub enum B64Error {
+    InvalidDataSize,
+    DataSizeMismatch,
+    OutputSizeMismatch,
+    InternalError,
+    InvalidData,
+}
+
+impl Display for B64Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            B64Error::InvalidDataSize => f.write_str("Invalid Data Size"),
+            B64Error::DataSizeMismatch => f.write_str("Data Size Mismatch"),
+            B64Error::OutputSizeMismatch => f.write_str("Output Size Mismatch"),
+            B64Error::InternalError => f.write_str("Internal Error"),
+            B64Error::InvalidData => f.write_str("Invalid Data"),
+        }
+    }
+}
+
+impl Error for B64Error {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+
+    fn cause(&self) -> Option<&dyn Error> {
+        self.source()
+    }
+}
 
 #[test]
 fn it_works() {
     let s = "The test string".to_string();
     let sbytes = s.into_bytes();
-    let mut data: [u8; 15] = [0u8; 15];
-    let mut base64: [u8; 20] = [0u8; 20];
 
-    let result_size = data_to_base64(&sbytes, sbytes.len(), &mut base64, false);
-    assert_eq!(result_size, base64.len());
-    let result_size = base64_to_data(&base64, base64.len(), &mut data);
-    assert_eq!(result_size, data.len());
+    let b64_result = data_to_base64(&sbytes, false).expect("Should be able to encode base64");
+    assert_eq!(b64_result.len(), 20);
+    let data_result = base64_to_data(&b64_result).expect("Should be able to decode base64");
+    assert_eq!(data_result.len(), 15);
 
-    assert_eq!(sbytes, data);
+    assert_eq!(&sbytes, &data_result);
 
     let s = "DapperBase64/+Hi".to_string();
     let sbytes = s.into_bytes();
-    let mut data: [u8; 12] = [0u8; 12];
-    let mut base64: [u8; 16] = [0u8; 16];
-    let result_size = base64_to_data(&sbytes, sbytes.len(), &mut data);
-    assert_eq!(result_size, data.len());
-    let result_size = data_to_base64(&data, data.len(), &mut base64, false);
-    assert_eq!(result_size, base64.len());
+    let data_result = base64_to_data(&sbytes).expect("Should be able to decode base64");
+    assert_eq!(data_result.len(), 12);
+    let b64_result = data_to_base64(&data_result, false).expect("Should be able to encode base64");
+    assert_eq!(b64_result.len(), 16);
 
-    assert_eq!(sbytes, base64);
+    assert_eq!(&sbytes, &b64_result);
 }
 
 /// Returns a base64 encoded character based on the value given
@@ -76,58 +105,46 @@ pub fn data_to_base64_map(value: u8, url_safe: bool) -> u8 {
 /// use base64::data_to_base64;
 ///
 /// let data = [121u8, 101u8, 112u8, 115u8];
-/// let mut base64_array = [0u8; 8];
-/// let mut base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
-/// assert_eq!(8, base64_size);
-/// assert_eq!(b"eWVwcw==", &base64_array);
+/// let b64_result = data_to_base64(&data, false).expect("Should be able to encode base64");
+/// assert_eq!(8, b64_result.len());
+/// assert_eq!(b"eWVwcw==", b64_result.as_slice());
 ///
 /// let data = [121u8, 101u8, 112u8];
-/// let mut base64_array = [0u8; 4];
-/// base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
-/// assert_eq!(4, base64_size);
-/// assert_eq!(b"eWVw", &base64_array);
+/// let b64_result = data_to_base64(&data, false).expect("Should be able to encode base64");
+/// assert_eq!(4, b64_result.len());
+/// assert_eq!(b"eWVw", b64_result.as_slice());
 ///
 /// let data = [121u8, 101u8];
-/// base64_size = data_to_base64(&data, data.len(), &mut base64_array, false);
-/// assert_eq!(4, base64_size);
-/// assert_eq!(b"eWU=", &base64_array);
+/// let b64_result = data_to_base64(&data, false).expect("Should be able to encode base64");
+/// assert_eq!(4, b64_result.len());
+/// assert_eq!(b"eWU=", b64_result.as_slice());
 /// ```
-pub fn data_to_base64(
-    data: &[u8],
-    data_size: usize,
-    base64_result: &mut [u8],
-    url_safe: bool,
-) -> usize {
-    if data_size == 0 {
-        panic!("ERROR: Given data size is zero!");
-    } else if data_size > data.len() {
-        panic!("ERROR: Given data size is greater than the data array!");
+pub fn data_to_base64(data: &[u8], url_safe: bool) -> Result<Vec<u8>, B64Error> {
+    if data.is_empty() {
+        return Err(B64Error::InvalidDataSize);
     }
 
     let base64_size: usize = ((data.len() - 1) / 3 + 1) * 4;
-
-    if base64_size > base64_result.len() {
-        panic!(
-            "ERROR: calculated resulting size of data to base64 conversion is bigger than base64_result array!"
-        );
-    }
 
     let mut base64_iter: usize = 0;
     let mut prev = 0u8;
     let mut prev_iter: usize = 0;
 
-    for i in 0..data_size {
+    let mut base64_result: Vec<u8> = Vec::new();
+    base64_result.resize(base64_size, 0);
+
+    for i in 0..data.len() {
         match i % 3 {
             0 => {
                 if base64_iter >= base64_size {
-                    panic!("base64_result index is greater than or equal to calculated size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 base64_result[base64_iter] = data_to_base64_map((data[i] & 0xFCu8) >> 2, url_safe);
                 base64_iter += 1;
             }
             1 => {
                 if base64_iter >= base64_size {
-                    panic!("base64_result index is greater than or equal to calculated size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 base64_result[base64_iter] =
                     data_to_base64_map(((prev << 4) & 0x30u8) | (data[i] >> 4), url_safe);
@@ -135,7 +152,7 @@ pub fn data_to_base64(
             }
             2 => {
                 if base64_iter >= base64_size {
-                    panic!("base64_result index is greater than or equal to calculated size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 base64_result[base64_iter] = data_to_base64_map(
                     ((prev << 2) & 0x3Cu8) | ((data[i] & 0xC0u8) >> 6),
@@ -144,7 +161,7 @@ pub fn data_to_base64(
                 base64_iter += 1;
 
                 if base64_iter >= base64_size {
-                    panic!("base64_result index is greater than or equal to calculated size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 base64_result[base64_iter] = data_to_base64_map(data[i] & 0x3Fu8, url_safe);
                 base64_iter += 1;
@@ -159,32 +176,32 @@ pub fn data_to_base64(
     match prev_iter % 3 {
         0 => {
             if base64_iter >= base64_size {
-                panic!("base64_result index is greater than or equal to calculated size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             base64_result[base64_iter] = data_to_base64_map((prev & 0x3u8) << 4, url_safe);
             base64_iter += 1;
 
             if base64_iter >= base64_size {
-                panic!("base64_result index is greater than or equal to calculated size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             base64_result[base64_iter] = 61u8;
             base64_iter += 1;
 
             if base64_iter >= base64_size {
-                panic!("base64_result index is greater than or equal to calculated size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             base64_result[base64_iter] = 61u8;
             base64_iter += 1;
         }
         1 => {
             if base64_iter >= base64_size {
-                panic!("base64_result index is greater than or equal to calculated size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             base64_result[base64_iter] = data_to_base64_map((prev & 0xFu8) << 2, url_safe);
             base64_iter += 1;
 
             if base64_iter >= base64_size {
-                panic!("base64_result index is greater than or equal to calculated size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             base64_result[base64_iter] = 61u8;
             base64_iter += 1;
@@ -194,13 +211,10 @@ pub fn data_to_base64(
     }
 
     if base64_iter != base64_size {
-        panic!(
-            "ERROR: Function ended with incorrect final base64_iter value of {}; base64_size is {}",
-            base64_iter, base64_size
-        );
+        return Err(B64Error::DataSizeMismatch);
     }
 
-    base64_size
+    Ok(base64_result)
 }
 
 /// Returns data based on the base64 encoded character given
@@ -236,49 +250,37 @@ pub fn base64_to_data_map(base64: u8) -> u8 {
 /// use base64::base64_to_data;
 ///
 /// let base64: &[u8; 8] = b"////////";
-/// let mut data: [u8; 6] = [0u8; 6];
-/// let mut data_size: usize = base64_to_data( base64, base64.len(), &mut data );
-/// assert_eq!(data_size, 6);
+/// let data_result = base64_to_data(base64).expect("Should be able to decode base64");
+/// assert_eq!(data_result.len(), 6);
 /// let result: [u8; 6] = [255, 255, 255, 255, 255, 255];
-/// assert_eq!(&result, &data);
+/// assert_eq!(&result, data_result.as_slice());
 ///
 /// let base64: &[u8; 4] = b"//==";
-/// data[2] = 0;
-/// data[3] = 0;
-/// data[4] = 0;
-/// data[5] = 0;
-/// data_size = base64_to_data(base64, base64.len(), &mut data);
-/// assert_eq!(data_size, 2);
-/// let result: [u8; 6] = [255, 0xF0, 0, 0, 0, 0];
-/// assert_eq!(&result, &data);
+/// let data_result = base64_to_data(base64).expect("Should be able to decode base64");
+/// assert_eq!(data_result.len(), 2);
+/// let result: [u8; 2] = [255, 0xF0];
+/// assert_eq!(&result, data_result.as_slice());
 ///
 /// let base64: &[u8; 4] = b"///=";
-/// data[3] = 0;
-/// data[4] = 0;
-/// data[5] = 0;
-/// data_size = base64_to_data(base64, base64.len(), &mut data);
-/// assert_eq!(data_size, 3);
-/// let result: [u8; 6] = [255, 255, 0xC0, 0, 0, 0];
-/// assert_eq!(&result, &data);
+/// let data_result = base64_to_data(base64).expect("Should be able to decode base64");
+/// assert_eq!(data_result.len(), 3);
+/// let result: [u8; 3] = [255, 255, 0xC0];
+/// assert_eq!(&result, data_result.as_slice());
 ///
 /// let base64: &[u8; 8] = b"Q2hhcHM=";
-/// data_size = base64_to_data(base64, base64.len(), &mut data);
-/// assert_eq!(data_size, 6);
+/// let data_result = base64_to_data(base64).expect("Should be able to decode base64");
+/// assert_eq!(data_result.len(), 6);
 /// let result: [u8; 6] = [67, 104, 97, 112, 115, 0];
-/// assert_eq!(&result, &data);
+/// assert_eq!(&result, data_result.as_slice());
 /// ```
-pub fn base64_to_data(base64: &[u8], base64_size: usize, data_result: &mut [u8]) -> usize {
-    if base64_size == 0 {
-        panic!("ERROR: Given base64_size is zero!");
-    } else if base64_size > base64.len() {
-        panic!("ERROR: Given base64 size is greater than the base64 array!");
-    } else if base64_size % 4 != 0 {
-        panic!("ERROR: base64 array is of irregular length not divisible by 4!");
+pub fn base64_to_data(base64: &[u8]) -> Result<Vec<u8>, B64Error> {
+    if base64.is_empty() || base64.len() % 4 != 0 {
+        return Err(B64Error::InvalidDataSize);
     }
 
     let mut amount_of_padding: u8 = 0;
     {
-        let mut base64_iter: usize = base64_size;
+        let mut base64_iter: usize = base64.len();
         while base64[base64_iter - 1] == 61u8 {
             amount_of_padding += 1;
             base64_iter -= 1;
@@ -288,7 +290,7 @@ pub fn base64_to_data(base64: &[u8], base64_size: usize, data_result: &mut [u8])
         }
     }
 
-    let data_size: usize = (base64_size / 4 - if amount_of_padding > 0 { 1 } else { 0 }) * 3
+    let data_size: usize = (base64.len() / 4 - if amount_of_padding > 0 { 1 } else { 0 }) * 3
         + match amount_of_padding {
             0 => 0,
             1 => 3,
@@ -296,43 +298,40 @@ pub fn base64_to_data(base64: &[u8], base64_size: usize, data_result: &mut [u8])
             _ => unreachable!(),
         };
 
-    if data_size > data_result.len() {
-        panic!(
-            "ERROR: calculated resulting size of base64 to data conversion is bigger than data_result array!"
-        );
-    }
+    let mut data_result: Vec<u8> = Vec::new();
+    data_result.resize(data_size, 0);
 
     let mut prev: u8 = 255u8;
     let mut data_iter: usize = 0;
 
-    for i in 0..base64_size {
+    for i in 0..base64.len() {
         if base64[i] == 61u8 {
             break;
         }
 
         let temp_data = base64_to_data_map(base64[i]);
         if temp_data >= 64u8 {
-            panic!("ERROR: Invalid byte in base64 array!")
+            return Err(B64Error::InvalidData);
         }
         match i % 4 {
             0 => (),
             1 => {
                 if data_iter >= data_size {
-                    panic!("ERROR: data_iter is greater than or equal to data_size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 data_result[data_iter] = (prev << 2) | (temp_data >> 4);
                 data_iter += 1;
             }
             2 => {
                 if data_iter >= data_size {
-                    panic!("ERROR: data_iter is greater than or equal to data_size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 data_result[data_iter] = (prev << 4) | (temp_data >> 2);
                 data_iter += 1;
             }
             3 => {
                 if data_iter >= data_size {
-                    panic!("ERROR: data_iter is greater than or equal to data_size!");
+                    return Err(B64Error::DataSizeMismatch);
                 }
                 data_result[data_iter] = (prev << 6) | temp_data;
                 data_iter += 1;
@@ -347,14 +346,14 @@ pub fn base64_to_data(base64: &[u8], base64_size: usize, data_result: &mut [u8])
         0 => (),
         1 => {
             if data_iter >= data_size {
-                panic!("ERROR: data_iter is greater than or equal to data_size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             data_result[data_iter] = prev << 6;
             data_iter += 1;
         }
         2 => {
             if data_iter >= data_size {
-                panic!("ERROR: data_iter is greater than or equal to data_size!");
+                return Err(B64Error::DataSizeMismatch);
             }
             data_result[data_iter] = prev << 4;
             data_iter += 1;
@@ -363,11 +362,8 @@ pub fn base64_to_data(base64: &[u8], base64_size: usize, data_result: &mut [u8])
     }
 
     if data_iter != data_size {
-        panic!(
-            "ERROR: Function ended with incorrect final data_iter value of {}; data_size is {}",
-            data_iter, data_size
-        );
+        return Err(B64Error::DataSizeMismatch);
     }
 
-    data_size
+    Ok(data_result)
 }
