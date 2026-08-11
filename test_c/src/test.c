@@ -43,7 +43,7 @@ int main(void) {
 
         printf("data_size: %llu\n", data_size);
         if (data_again) {
-            printf("%.*s\n", data_size, data_again);
+            printf("%.*s\n", data_size < 5 ? data_size : 5, data_again);
             free(data_again);
         }
 
