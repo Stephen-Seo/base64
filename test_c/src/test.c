@@ -37,6 +37,16 @@ int main(void) {
     printf("size: %llu\n", size);
     if (b64) {
         printf("%s\n", b64);
+
+        unsigned long long data_size = 0;
+        char *data_again = base64_to_data_c_interface(b64, size, &data_size, 1);
+
+        printf("data_size: %llu\n", data_size);
+        if (data_again) {
+            printf("%.*s\n", data_size, data_again);
+            free(data_again);
+        }
+
         free(b64);
     }
 
