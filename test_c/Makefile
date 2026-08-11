@@ -23,15 +23,13 @@
 #
 # For more information, please refer to <https://unlicense.org>
 
-CWD != pwd
-
 all: test
 
 test: libbase64.a src/test.c
 	${CC} -g -o test src/test.c -I../include -L. -lbase64
 
 libbase64.a:
-	cd ..; cargo build --release --target-dir ${CWD}/rust_out ; find ${CWD}/rust_out -name libbase64.a -execdir cp '{}' ${CWD}/libbase64.a ';' ; rm -rf ${CWD}/rust_out
+	cd ..; cargo build --release --target-dir ${CURDIR}/rust_out ; find ${CURDIR}/rust_out -name libbase64.a -execdir cp '{}' ${CURDIR}/libbase64.a ';' ; rm -rf ${CURDIR}/rust_out
 
 .PHONY: clean
 
