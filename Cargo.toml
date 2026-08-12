@@ -8,4 +8,4 @@ edition = "2024"
 libc = "0.2"
 
 [lib]
-crate-type = ["lib", "staticlib"]
+crate-type = ["lib", "cdylib", "staticlib"]
