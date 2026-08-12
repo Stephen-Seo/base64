@@ -93,6 +93,13 @@ pub unsafe extern "C" fn data_to_base64_c_interface(
         let data_slice: &[u8] = slice::from_raw_parts(data as *const u8, data_size as usize);
         // +1 for the NULL terminator.
         let malloced_data: *mut c_ffi::c_void = malloc(b64_len as libc::size_t + 1);
+        if malloced_data.is_null() {
+            if stderr_on_error != 0 {
+                eprintln!("Malloc returned NULL!");
+            }
+
+            return c_ptr::null_mut();
+        }
 
         let b64_result = data_to_base64(data_slice, url_safe != 0);
 
@@ -240,6 +247,13 @@ pub unsafe extern "C" fn base64_to_data_c_interface(
         let b64_slice: &[u8] = slice::from_raw_parts(b64 as *const u8, b64_size as usize);
         // +1 for the NULL terminator.
         let malloced_data: *mut c_ffi::c_void = malloc(data_len as libc::size_t + 1);
+        if malloced_data.is_null() {
+            if stderr_on_error != 0 {
+                eprintln!("Malloc returned NULL!");
+            }
+
+            return c_ptr::null_mut();
+        }
 
         let data_result = base64_to_data(b64_slice);
 
