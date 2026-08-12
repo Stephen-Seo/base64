@@ -25,14 +25,14 @@
 
 all: test
 
-test: libbase64.a src/test.c
-	${CC} -g -o test src/test.c -I../include -L. -lbase64
+test: libbase64.so src/test.c
+	${CC} -g -o test src/test.c -I../include -L. -lbase64 -Wl,-rpath,'$$ORIGIN'
 
-libbase64.a:
-	cd ..; cargo build --release --target-dir ${CURDIR}/rust_out ; find ${CURDIR}/rust_out -name libbase64.a -execdir cp '{}' ${CURDIR}/libbase64.a ';' ; rm -rf ${CURDIR}/rust_out
+libbase64.so:
+	cd ..; cargo rustc --release --crate-type=cdylib --target-dir ${CURDIR}/rust_out ; find ${CURDIR}/rust_out -name libbase64.so -execdir cp '{}' ${CURDIR}/libbase64.so ';' ; rm -rf ${CURDIR}/rust_out
 
 .PHONY: clean
 
 clean:
 	rm -f test
-	rm -f libbase64.a
+	rm -f libbase64.so
